@@ -1,0 +1,80 @@
+# Codemagic CI/CD for Rank Rush (https://codemagic.io).
+#
+# Two workflows:
+#   • android-debug   — builds a debug APK, no secrets needed. Good first run.
+#   • android-release — builds a signed release APK + AAB. Needs an environment
+#                       group named "rankrush" holding the variables listed below.
+#
+# Set up (once) in the Codemagic UI → your app → Environment variables, group
+# "rankrush" (mark all as secure):
+#   GOOGLE_SERVICES_JSON   base64 of android/app/google-services.json
+#   DART_DEFINES_JSON      base64 of your dart_defines.json
+#   KEYSTORE_BASE64        base64 of your release .jks keystore
+#   STORE_PASSWORD         keystore store password
+#   KEY_PASSWORD           key password
+#   KEY_ALIAS              key alias (e.g. rank-rush)
+# (See docs/GET_AN_APK.md for how to base64-encode each file.)
+
+workflows:
+  android-debug:
+    name: Rank Rush — debug APK
+    instance_type: linux_x2
+    max_build_duration: 45
+    environment:
+      flutter: stable
+      java: 17
+    scripts:
+      - name: Prepare dart-defines
+        script: |
+          if [ -n "$DART_DEFINES_JSON" ]; then
+            echo "$DART_DEFINES_JSON" | base64 --decode > dart_defines.json
+          else
+            cp dart_defines.example.json dart_defines.json
+          fi
+      - name: Optional Firebase config
+        script: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
+          fi
+      - name: Flutter dependencies
+        script: flutter pub get
+      - name: Build debug APK
+        script: flutter build apk --debug --dart-define-from-file=dart_defines.json
+    artifacts:
+      - build/app/outputs/flutter-apk/*.apk
+
+  android-release:
+    name: Rank Rush — signed release APK + AAB
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      groups:
+        - rankrush        # holds the secure variables listed in the header
+      flutter: stable
+      java: 17
+    scripts:
+      - name: Verify required variables
+        script: |
+          for v in GOOGLE_SERVICES_JSON DART_DEFINES_JSON KEYSTORE_BASE64 STORE_PASSWORD KEY_PASSWORD KEY_ALIAS; do
+            if [ -z "$(eval echo \$$v)" ]; then echo "Missing variable: $v"; exit 1; fi
+          done
+      - name: Decode config + keystore
+        script: |
+          echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
+          echo "$DART_DEFINES_JSON"    | base64 --decode > dart_defines.json
+          echo "$KEYSTORE_BASE64"      | base64 --decode > "$CM_BUILD_DIR/android/app/upload-keystore.jks"
+          cat > "$CM_BUILD_DIR/android/key.properties" <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+      - name: Flutter dependencies
+        script: flutter pub get
+      - name: Build release APK
+        script: flutter build apk --release --dart-define-from-file=dart_defines.json
+      - name: Build release App Bundle
+        script: flutter build appbundle --release --dart-define-from-file=dart_defines.json
+    artifacts:
+      - build/app/outputs/flutter-apk/app-release.apk
+      - build/app/outputs/bundle/release/app-release.aab

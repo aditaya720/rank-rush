@@ -1,0 +1,266 @@
+# Rank Rush 🃏
+
+A **server-authoritative, provably-fair, 52-card multiplayer card game** built
+with Flutter and Firebase.
+
+> ### 🪙 Virtual coins only — this is not a gambling app
+> Rank Rush uses **play-money coins with no monetary value**. There are **no
+> deposits, no withdrawals, no purchases, no cash prizes, no UPI, and no
+> cryptocurrency** — and by design there never will be. Coins cannot be bought,
+> sold, redeemed, or exchanged for anything of value. The game is for
+> entertainment only and is intended for players aged **18+**.
+
+---
+
+## The game in one paragraph
+
+The server shuffles a standard 52-card deck and draws a **target card**; its rank
+(e.g. "a Seven") is the target rank. Players bet virtual coins on **LEFT** or
+**RIGHT**. The remaining 51 cards are then revealed one at a time, alternating
+sides — LEFT takes the even positions, RIGHT the odd ones. The **first side to
+reveal a card matching the target rank wins**, and winners are paid
+`floor(stake × multiplier)` in virtual coins. Every step is computed on the
+server and can be independently re-verified on your phone.
+
+---
+
+## Why "server-authoritative" and "provably fair"?
+
+These two properties are the heart of the project and are treated as
+non-negotiable throughout the codebase.
+
+**The client never decides anything that matters.** Deck creation, shuffling,
+the target card, the reveal order, the winner, round status, and every
+virtual-coin transaction are computed **exclusively** inside Cloud Functions
+using the Firebase Admin SDK. Firestore security rules grant clients **zero write
+access** to game state and deny reads of any secret. The app is a *view* over
+server-owned state plus a thin input layer for placing bets — it cannot alter a
+balance, winner, deck, payout, or config even if the binary is tampered with.
+
+**You don't have to trust the server — you can check it.** Before each round the
+server publishes `SHA256(serverSeed)` as a commitment it cannot change. After the
+round it reveals the seed. Because the whole deck is derived deterministically
+from `(serverSeed, roundId)`, your device rebuilds the round from scratch and
+confirms the seed→hash commitment, the deck hash, the target card, and the
+winner — all offline, with no server involved. The full byte-level algorithm is
+in [`docs/FAIRNESS.md`](docs/FAIRNESS.md), mirrored identically in TypeScript
+(server) and Dart (client) and locked by a cross-language test vector.
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────── Flutter client (this repo, lib/) ───────────────────────────┐
+│  Presentation (Riverpod + GoRouter, Material 3 dark)                                     │
+│  Domain models (immutable)      Data repositories (Firestore reads + callable wrappers)  │
+│  core/security/provably_fair.dart  ← independent on-device fairness verifier             │
+└───────────────┬──────────────────────────────────────────────────────────────┬─────────┘
+                │ reads (realtime snapshots)                    calls (callables) │
+                ▼                                                                 ▼
+        ┌───────────────┐                                        ┌──────────────────────────┐
+        │  Cloud         │  Firestore rules: clients READ-only,   │  Cloud Functions (TS)    │
+        │  Firestore     │◄───────────────────────────────────── │  AUTHORITATIVE engine    │
+        │  (game state)  │        Admin SDK writes only           │  shuffle/target/winner/  │
+        └───────────────┘                                        │  bets/wallet/settlement  │
+                                                                  └──────────────────────────┘
+```
+
+Clean architecture is applied per feature (`data` / `domain` / `presentation`).
+State is managed with **Riverpod**; navigation with **GoRouter** (auth-gated
+redirect). The UI is a Material 3 dark theme, and playing cards are **drawn with
+Flutter widgets** (no bitmap assets → no asset-licensing concerns).
+
+**Stack:** Flutter · Riverpod · GoRouter · Firebase Auth (anonymous + Google) ·
+Cloud Firestore · Cloud Functions (TypeScript, firebase-functions v2) · App
+Check · Crashlytics · Analytics · Cloud Messaging.
+
+---
+
+## Project structure
+
+```
+rank_rush/
+├─ lib/
+│  ├─ app/                    # App root, theme, router, build-time config
+│  ├─ core/
+│  │  ├─ security/            # provably_fair.dart — the on-device verifier
+│  │  ├─ widgets/             # shared widgets incl. vector playing cards
+│  │  ├─ utils/, errors/, constants/
+│  ├─ features/
+│  │  ├─ authentication/      # anon + Google sign-in
+│  │  ├─ game/                # round state, betting, reveal animation, table
+│  │  ├─ wallet/              # balance, immutable ledger, daily bonus
+│  │  ├─ leaderboard/         # privacy-safe rankings
+│  │  ├─ fairness/            # provable-fairness verification screen
+│  │  ├─ responsible_play/    # session timer, limits, self-exclusion
+│  │  └─ home/                # hub
+│  ├─ firebase_options.dart   # generated by flutterfire (git-ignored in practice)
+│  └─ main.dart
+├─ functions/                 # Cloud Functions (TypeScript) — the authority
+│  └─ src/
+│     ├─ engine.ts            # pure deterministic 52-card engine
+│     ├─ fairness.ts          # SHA-256 PRNG + commitment primitives
+│     ├─ rounds.ts            # round lifecycle (create/sync/settle/cancel)
+│     ├─ bets.ts              # idempotent, validated bet placement
+│     ├─ wallet.ts            # profile, ledger, daily bonus
+│     ├─ config.ts, firestore.ts, types.ts
+│     ├─ index.ts             # callable + scheduled + auth-trigger entrypoints
+│     └─ selftest.ts          # standalone engine self-test (no Firebase)
+├─ test/engine/               # Dart cross-language fairness test vector
+├─ firestore.rules            # read-only clients; default-deny
+├─ firestore.indexes.json
+├─ firebase.json              # functions + firestore + emulators
+├─ docs/FAIRNESS.md           # byte-level fairness specification
+├─ .env.example, dart_defines.example.json
+└─ pubspec.yaml               # requires Flutter 3.27+ / Dart 3.6+
+```
+
+---
+
+## Getting started
+
+### Prerequisites
+- Flutter **3.27+** (Dart **3.6+**) — required for the `Color.withValues()` API.
+- Node.js **20** and the Firebase CLI (`npm i -g firebase-tools`).
+- A Firebase project with **Auth**, **Firestore**, and **Cloud Functions**
+  (Blaze plan) enabled.
+
+### 1. Configure Firebase (no secrets in source)
+```bash
+# Generates lib/firebase_options.dart for your project.
+dart pub global activate flutterfire_cli
+flutterfire configure
+
+# Copy the client config template and fill in your project values.
+cp dart_defines.example.json dart_defines.json   # then edit it
+```
+`dart_defines.json` and `firebase_options.dart` hold only **public** Firebase
+client identifiers. **Never** put service-account keys or any server secret in
+the Flutter app — those live only in the Cloud Functions runtime.
+
+### 2. Deploy the backend (the authority)
+```bash
+cd functions
+npm install
+npm run selftest          # runs the engine self-test — should print "0 failed"
+cd ..
+
+firebase deploy --only firestore:rules,firestore:indexes
+firebase deploy --only functions
+```
+The `gameLoop` scheduled function keeps the table advancing even with no players
+online. To create your first admin, deploy, sign in once, then call
+`adminSetRoleFn` from a trusted context (or set the `role` custom claim manually
+in the console) — `SUPER_ADMIN` can then promote others in-app.
+
+### 3. Run the app
+```bash
+flutter pub get
+flutter run --dart-define-from-file=dart_defines.json
+```
+
+### Building for Android (APK / App Bundle)
+The `android/` project is generated and pre-wired for Firebase
+(`applicationId: com.rankrush.app`, min SDK 23).
+
+**Want an APK the fastest way?** See [`docs/GET_AN_APK.md`](docs/GET_AN_APK.md) —
+it covers building in the cloud with **zero local setup** via the included
+GitHub Actions (`.github/workflows/android-build.yml`) or Codemagic
+(`codemagic.yaml`) configs, as well as building locally. For the full path to a
+signed release build — creating a keystore, registering SHA fingerprints for
+Google Sign-In, and the `flutter build apk`/`appbundle` commands — see
+[`docs/ANDROID_BUILD.md`](docs/ANDROID_BUILD.md).
+
+```bash
+# quick release APK once google-services.json + dart_defines.json are in place
+flutter build apk --release --dart-define-from-file=dart_defines.json
+```
+
+### Local development with emulators
+Set `"USE_EMULATORS": true` in `dart_defines.json`, then:
+```bash
+cd functions && npm run serve      # starts functions + firestore + auth emulators
+```
+
+---
+
+## Testing & verification
+
+```bash
+# Server engine self-test (deck invariants, determinism, commitment, settlement,
+# the spec sample scenario, and a distribution smoke test):
+cd functions && npm run selftest
+
+# Dart cross-language fairness test vector (proves the client verifier reproduces
+# the server byte-for-byte):
+flutter test test/engine/provably_fair_test.dart
+
+# Full Flutter analyzer + tests:
+flutter analyze && flutter test
+```
+
+The canonical test vector (seed `a1b2c3…ff00`, round `rnd_testvector_0001`)
+produces target `4C`, winner `RIGHT`, and deck hash `aa1cf3a9…`. Any of the three
+implementations — TypeScript, Dart, or a from-scratch reimplementation — must
+reproduce these exactly. See [`docs/FAIRNESS.md`](docs/FAIRNESS.md) §8.
+
+---
+
+## Responsible play
+
+Because betting-style mechanics can be compulsive even with play money, the app
+ships with real guardrails, not just a disclaimer:
+
+- **Persistent virtual-coin labelling** on the game and wallet screens, and an
+  18+ reminder — with **no misleading claims** ("guaranteed win", "earn real
+  money", etc. are explicitly avoided).
+- **Session timer** with configurable break reminders (30 / 60 / 90 min).
+- **Personal daily play reminder** with a progress bar against a limit you set.
+- **Self-exclusion** for 24 hours, 7 days, or 30 days — enforced by the server,
+  not just hidden in the UI, and not reversible early.
+
+---
+
+## Backend surface (Cloud Functions)
+
+**Player callables:** `ensureProfileFn`, `syncRoundFn`, `placeBetFn`,
+`claimDailyBonusFn`, `verifyFairnessFn`, `serverTimeFn`, `selfExcludeFn`.
+**Admin (role-gated):** `adminCreateRoundFn`, `adminCancelRoundFn`,
+`adminSetConfigFn`, `adminAdjustBalanceFn`, `adminSuspendUserFn`, and
+`adminSetRoleFn` (SUPER_ADMIN only). **System:** `gameLoop` (scheduled backstop),
+`provisionUser` (profile provisioning on account creation).
+
+Every callable authenticates the caller; admin callables additionally verify a
+`role` custom claim. Internal domain errors are mapped to safe, user-friendly
+`HttpsError` codes — stack traces are never returned to clients. Bets are
+**idempotent** (`betId = {uid}_{roundId}`) so a retried network call can never
+double-charge.
+
+---
+
+## Explicitly out of scope (by design)
+
+No real-money deposits/withdrawals, no in-app purchases, no cash prizes, no UPI
+or payment-gateway integration, no cryptocurrency wagering, no cash-out, and no
+storage of sensitive authentication material in Firestore. These are intentional
+product boundaries, not missing features.
+
+---
+
+## Roadmap ideas
+
+- Push-notification round reminders (Cloud Messaging is already wired).
+- Additional table variants / configurable multipliers per table.
+- Cosmetic-only avatar unlocks earned through play (still zero monetary value).
+- Localization (the UI strings are centralized and translation-ready).
+- Widget/integration test coverage for the betting and reveal flows.
+
+---
+
+## License & disclaimer
+
+Provided as-is for educational and entertainment purposes. It is **not** a
+gambling product and must not be modified into one. If you adapt it, keep the
+virtual-coin-only boundary and the provable-fairness verifier intact, and comply
+with the app-store and legal requirements of your jurisdiction.

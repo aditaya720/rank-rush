@@ -1,0 +1,106 @@
+rules_version = '2';
+
+// =============================================================================
+// Rank Rush — Firestore Security Rules (VIRTUAL COINS ONLY)
+//
+// SECURITY MODEL
+//   The server is fully authoritative. EVERY mutation (bets, balances, rounds,
+//   payouts, config, roles) happens inside Cloud Functions using the Admin SDK,
+//   which bypasses these rules. Therefore clients are granted ZERO write access
+//   to game state. These rules only govern READS — deciding what a signed-in
+//   player is allowed to see — and deny all client writes by default.
+//
+//   Consequences of this model:
+//     - The client can never change a balance, winner, deck, payout, or config.
+//     - The per-round server seed lives in a `private/secret` doc that no client
+//       can ever read (only its SHA-256 hash is public, until reveal).
+//     - No sensitive auth material is stored in Firestore.
+// =============================================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helpers -----------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // ---- Users -------------------------------------------------------------
+    // A player may read only their own profile. All writes are server-only.
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+
+      // Immutable virtual-coin ledger — owner may read, nobody may write.
+      match /transactions/{transactionId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      // Personal game history — owner may read, nobody may write.
+      match /gameHistory/{roundId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+    }
+
+    // ---- Daily rewards (streak bookkeeping) --------------------------------
+    match /dailyRewards/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // ---- Public, privacy-safe leaderboard ----------------------------------
+    // Contains only display name, avatar bucket, coin balance, and win counts.
+    match /leaderboardEntries/{uid} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- Game configuration (read-only for clients) ------------------------
+    // Exposes non-sensitive display values (min/max bet, multiplier, timings).
+    match /config/{docId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // ---- Game table + rounds ----------------------------------------------
+    match /games/{gameId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+
+      match /rounds/{roundId} {
+        // Public round doc: status, serverSeedHash, target card, aggregates,
+        // and — only after settlement — serverSeed + reveal sequence + winner.
+        allow read: if isSignedIn();
+        allow write: if false;
+
+        // Participants shown at the live table (privacy-safe fields only).
+        match /players/{playerUid} {
+          allow read: if isSignedIn();
+          allow write: if false;
+        }
+
+        // Individual bet records — readable only by the bettor.
+        match /bets/{betId} {
+          allow read: if isSignedIn() && resource.data.uid == request.auth.uid;
+          allow write: if false;
+        }
+
+        // Server seed lives here before reveal. NEVER client-accessible.
+        match /private/{docId} {
+          allow read, write: if false;
+        }
+      }
+    }
+
+    // ---- Default deny ------------------------------------------------------
+    // Anything not explicitly matched above is fully denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Shown from launch until Flutter renders its first frame. Uses a
+         window background drawable so there's no white flash. -->
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+    </style>
+
+    <!-- Applied once Flutter takes over. A dark-on-launch look matches the
+         app's Material 3 dark theme. -->
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@color/rankRushBackground</item>
+    </style>
+</resources>

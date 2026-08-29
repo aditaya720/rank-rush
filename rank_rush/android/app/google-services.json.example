@@ -1,0 +1,43 @@
+{
+  "_comment": [
+    "THIS IS A TEMPLATE — it is NOT a valid google-services.json and will not work.",
+    "Download the real file from the Firebase console:",
+    "  Firebase console > Project settings > Your apps > Android app (com.rankrush.app)",
+    "  > 'google-services.json'. Save it as  android/app/google-services.json.",
+    "The real file is git-ignored. Once present, the Google Services + Crashlytics",
+    "Gradle plugins activate automatically (see android/app/build.gradle)."
+  ],
+  "project_info": {
+    "project_number": "REPLACE_WITH_PROJECT_NUMBER",
+    "project_id": "REPLACE_WITH_PROJECT_ID",
+    "storage_bucket": "REPLACE_WITH_PROJECT_ID.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:REPLACE:android:REPLACE",
+        "android_client_info": {
+          "package_name": "com.rankrush.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "REPLACE_WITH_WEB_CLIENT_ID.apps.googleusercontent.com",
+          "client_type": 3,
+          "_comment": "client_type 3 (web) is required for Google Sign-In on Android"
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "REPLACE_WITH_ANDROID_API_KEY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,48 @@
+# Rank Rush — a virtual-coin card game
+
+## Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+.idea/
+*.iml
+.vscode/
+**/generated_plugin_registrant.*
+coverage/
+
+## Dart defines / secrets — never commit real values
+dart_defines.json
+.env
+!.env.example
+
+## Firebase (generated / local)
+lib/firebase_options.dart
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+
+## Android
+android/.gradle/
+android/captures/
+android/.cxx/
+android/local.properties
+android/gradle/wrapper/gradle-wrapper.jar
+# Release signing — NEVER commit
+android/key.properties
+*.jks
+*.keystore
+
+## Functions
+functions/node_modules/
+functions/lib/
+functions/.env
+functions/*.local
+
+## OS
+.DS_Store
+Thumbs.db

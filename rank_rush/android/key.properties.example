@@ -1,0 +1,17 @@
+# Release signing configuration for Rank Rush.
+#
+# 1. Copy this file to  android/key.properties
+# 2. Fill in the values for the keystore you generated (see docs/ANDROID_BUILD.md).
+# 3. NEVER commit android/key.properties or your .jks/.keystore file — they are
+#    already listed in .gitignore.
+#
+# Generate a keystore with:
+#   keytool -genkey -v -keystore ~/rank-rush-release.jks \
+#           -keyalg RSA -keysize 2048 -validity 10000 -alias rank-rush
+#
+storePassword=CHANGE_ME
+keyPassword=CHANGE_ME
+keyAlias=rank-rush
+# Absolute path is safest, e.g. /Users/you/keys/rank-rush-release.jks
+# (Windows: C:\\Users\\you\\keys\\rank-rush-release.jks)
+storeFile=/absolute/path/to/rank-rush-release.jks

@@ -1,0 +1,27 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true
+  errors:
+    # Treat a few important issues as warnings/errors for code quality.
+    invalid_annotation_target: ignore
+    deprecated_member_use: warning
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+    - "build/**"
+
+linter:
+  rules:
+    prefer_const_constructors: true
+    prefer_const_constructors_in_immutables: true
+    prefer_const_declarations: true
+    prefer_final_locals: true
+    avoid_print: true
+    always_declare_return_types: true
+    unawaited_futures: true
+    require_trailing_commas: true
+    use_super_parameters: true
+    sort_child_properties_last: true
