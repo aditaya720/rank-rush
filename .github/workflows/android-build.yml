@@ -40,7 +40,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable          # any stable >= 3.27 satisfies pubspec
+          flutter-version: 3.29.3
           cache: true
 
       - name: Provide Firebase config (optional) + dart-defines
@@ -61,6 +61,20 @@ jobs:
             cp dart_defines.example.json dart_defines.json
             echo "Using dart_defines.example.json (app will show the config-needed screen)"
           fi
+
+      - name: Generate firebase_options.dart from dart_defines.json
+        if: '!contains(grep('"FIREBASE_PROJECT_ID"'', dart_defines.json), ''your-firebase-project-id'')'
+        env:
+          DART_DEFINES_JSON: ${{ secrets.DART_DEFINES_JSON }}
+        run: |
+          PROJECT_ID=$(grep -oP '"FIREBASE_PROJECT_ID":\s*"\K[^"]+' dart_defines.json)
+          if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "your-firebase-project-id" ]; then
+            echo "No real Firebase project ID — skipping firebase_options.dart generation."
+            exit 0
+          fi
+          echo "Generating firebase_options.dart for project: $PROJECT_ID"
+          dart pub global activate flutterfire_cli
+          flutterfire configure --project="$PROJECT_ID" --out=lib/firebase_options.dart --yes
 
       - name: flutter pub get
         run: flutter pub get
@@ -96,7 +110,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: 3.29.3
           cache: true
 
       - name: Require and decode secrets
@@ -125,6 +139,19 @@ jobs:
           storeFile=upload-keystore.jks
           EOF
           echo "Wrote key.properties and decoded keystore."
+
+      - name: Generate firebase_options.dart from dart_defines.json
+        env:
+          DART_DEFINES_JSON: ${{ secrets.DART_DEFINES_JSON }}
+        run: |
+          PROJECT_ID=$(grep -oP '"FIREBASE_PROJECT_ID":\s*"\K[^"]+' dart_defines.json)
+          if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "your-firebase-project-id" ]; then
+            echo "No real Firebase project ID — skipping firebase_options.dart generation."
+            exit 0
+          fi
+          echo "Generating firebase_options.dart for project: $PROJECT_ID"
+          dart pub global activate flutterfire_cli
+          flutterfire configure --project="$PROJECT_ID" --out=lib/firebase_options.dart --yes
 
       - name: flutter pub get
         run: flutter pub get

@@ -34,24 +34,22 @@ if (hasKeystore) {
 
 android {
     namespace = "com.rankrush.app"
-    compileSdk = 35
-    // Firebase's native SDKs require NDK r27. Gradle downloads it automatically.
-    ndkVersion = "27.0.12077973"
+    compileSdk = 36
+    ndkVersion = "28.2.13676358"
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     kotlinOptions {
-        jvmTarget = "11"
+        jvmTarget = "17"
     }
 
     defaultConfig {
         applicationId = "com.rankrush.app"
-        // minSdk 23: the floor required by firebase-auth / firebase-app-check.
         minSdk = 23
-        targetSdk = 35
+        targetSdk = 36
         versionCode = flutterVersionCode.toInteger()
         versionName = flutterVersionName
         // App label comes from res/values/strings.xml (@string/app_name).
