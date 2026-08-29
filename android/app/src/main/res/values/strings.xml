@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Rank Rush</string>
+    <!-- FCM channel id referenced from the manifest. Create a matching channel
+         in Dart when you wire up notifications. -->
+    <string name="default_notification_channel_id">rank_rush_rounds</string>
+</resources>

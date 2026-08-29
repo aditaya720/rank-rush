@@ -1,0 +1,105 @@
+plugins {
+    id "com.android.application"
+    id "kotlin-android"
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin plugins.
+    id "dev.flutter.flutter-gradle-plugin"
+}
+
+// --- Flutter version code / name (from local.properties, written by the flutter tool) ---
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withReader("UTF-8") { reader -> localProperties.load(reader) }
+}
+
+def flutterVersionCode = localProperties.getProperty("flutter.versionCode")
+if (flutterVersionCode == null) {
+    flutterVersionCode = "1"
+}
+
+def flutterVersionName = localProperties.getProperty("flutter.versionName")
+if (flutterVersionName == null) {
+    flutterVersionName = "1.0"
+}
+
+// --- Release signing (read from key.properties, which is NEVER committed) ---
+// If key.properties is absent, release builds fall back to debug signing so the
+// project still assembles. See android/key.properties.example.
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+def hasKeystore = keystorePropertiesFile.exists()
+if (hasKeystore) {
+    keystorePropertiesFile.withReader("UTF-8") { reader -> keystoreProperties.load(reader) }
+}
+
+android {
+    namespace = "com.rankrush.app"
+    compileSdk = 35
+    // Firebase's native SDKs require NDK r27. Gradle downloads it automatically.
+    ndkVersion = "27.0.12077973"
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+
+    defaultConfig {
+        applicationId = "com.rankrush.app"
+        // minSdk 23: the floor required by firebase-auth / firebase-app-check.
+        minSdk = 23
+        targetSdk = 35
+        versionCode = flutterVersionCode.toInteger()
+        versionName = flutterVersionName
+        // App label comes from res/values/strings.xml (@string/app_name).
+    }
+
+    signingConfigs {
+        release {
+            if (hasKeystore) {
+                keyAlias = keystoreProperties["keyAlias"]
+                keyPassword = keystoreProperties["keyPassword"]
+                storeFile = keystoreProperties["storeFile"] ? file(keystoreProperties["storeFile"]) : null
+                storePassword = keystoreProperties["storePassword"]
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            signingConfig = hasKeystore ? signingConfigs.release : signingConfigs.debug
+            minifyEnabled = true
+            shrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
+            // Debug uses the same applicationId as release (com.rankrush.app) so a
+            // single google-services.json client entry covers both. Register BOTH
+            // your debug and release SHA-1 fingerprints under this one package in
+            // the Firebase console (see docs/ANDROID_BUILD.md) for Google Sign-In.
+        }
+    }
+}
+
+flutter {
+    source = "../.."
+}
+
+dependencies {
+    // FlutterFire plugins declare their own native Firebase dependencies via the
+    // pubspec, so no manual Firebase BoM entries are required here.
+}
+
+// Apply Google Services + Crashlytics Gradle plugins ONLY when the Firebase
+// config file is present. This lets a fresh clone build before Firebase is
+// wired up; once you add android/app/google-services.json, they activate.
+if (project.file("google-services.json").exists()) {
+    apply plugin: "com.google.gms.google-services"
+    apply plugin: "com.google.firebase.crashlytics"
+}

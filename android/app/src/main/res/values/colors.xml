@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Matches the app's Material 3 dark surface + green felt seed color. -->
+    <color name="rankRushBackground">#0F1420</color>
+    <color name="rankRushSurface">#151B2B</color>
+    <color name="rankRushFelt">#0B6E4F</color>
+    <color name="rankRushAccent">#3DDC84</color>
+    <color name="ic_launcher_background">#0B6E4F</color>
+</resources>

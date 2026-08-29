@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Profile builds also need network access for the observatory/DevTools
+         connection. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+</manifest>

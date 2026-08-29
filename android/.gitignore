@@ -1,0 +1,14 @@
+# Machine-generated / never committed
+gradle-wrapper.jar        # injected automatically by `flutter build` from the Flutter SDK
+.gradle/
+build/
+captures/
+*.iml
+.cxx/
+local.properties
+
+# Secrets — NEVER commit these
+key.properties
+*.jks
+*.keystore
+app/google-services.json

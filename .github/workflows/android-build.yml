@@ -1,0 +1,149 @@
+# Builds the Rank Rush Android app in the cloud — no local Flutter/Android setup.
+#
+#  • Every push to main/master  -> builds a DEBUG apk (works even with NO secrets)
+#    and uploads it as a downloadable artifact.
+#  • "Run workflow" (manual)     -> optionally builds a SIGNED RELEASE apk + aab
+#    when you have configured the signing/Firebase secrets (see docs/GET_AN_APK.md).
+#
+# This workflow assumes the Flutter project (pubspec.yaml) is at the REPO ROOT.
+name: Android build
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      build_release:
+        description: "Also build a signed release APK + AAB (needs signing secrets)"
+        type: boolean
+        default: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Debug APK — always runs, needs no secrets. Produces an installable apk.
+  # ---------------------------------------------------------------------------
+  debug-apk:
+    name: Debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable          # any stable >= 3.27 satisfies pubspec
+          cache: true
+
+      - name: Provide Firebase config (optional) + dart-defines
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          DART_DEFINES_JSON: ${{ secrets.DART_DEFINES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "$GOOGLE_SERVICES_JSON" | base64 -d > android/app/google-services.json
+            echo "Decoded google-services.json"
+          else
+            echo "No GOOGLE_SERVICES_JSON secret — building without Firebase native config."
+          fi
+          if [ -n "$DART_DEFINES_JSON" ]; then
+            echo "$DART_DEFINES_JSON" | base64 -d > dart_defines.json
+            echo "Decoded dart_defines.json from secret"
+          else
+            cp dart_defines.example.json dart_defines.json
+            echo "Using dart_defines.example.json (app will show the config-needed screen)"
+          fi
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Build debug APK
+        run: flutter build apk --debug --dart-define-from-file=dart_defines.json
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: rank-rush-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Signed release APK + AAB — runs only on manual dispatch with build_release,
+  # and only makes sense once you've added the signing + Firebase secrets.
+  # ---------------------------------------------------------------------------
+  release:
+    name: Signed release APK + AAB
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_release }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Require and decode secrets
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          DART_DEFINES_JSON: ${{ secrets.DART_DEFINES_JSON }}
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          missing=0
+          for v in GOOGLE_SERVICES_JSON DART_DEFINES_JSON KEYSTORE_BASE64 STORE_PASSWORD KEY_PASSWORD KEY_ALIAS; do
+            if [ -z "${!v}" ]; then echo "::error::Missing required secret: $v"; missing=1; fi
+          done
+          [ "$missing" = "0" ] || { echo "Add the secrets listed in docs/GET_AN_APK.md, then re-run."; exit 1; }
+
+          echo "$GOOGLE_SERVICES_JSON" | base64 -d > android/app/google-services.json
+          echo "$DART_DEFINES_JSON"    | base64 -d > dart_defines.json
+          echo "$KEYSTORE_BASE64"      | base64 -d > android/app/upload-keystore.jks
+
+          cat > android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=upload-keystore.jks
+          EOF
+          echo "Wrote key.properties and decoded keystore."
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release --dart-define-from-file=dart_defines.json
+
+      - name: Build release App Bundle (for Google Play)
+        run: flutter build appbundle --release --dart-define-from-file=dart_defines.json
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: rank-rush-release
+          path: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+
+      - name: Clean up secrets from workspace
+        if: always()
+        run: rm -f android/key.properties android/app/upload-keystore.jks android/app/google-services.json dart_defines.json
