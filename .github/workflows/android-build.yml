@@ -63,11 +63,15 @@ jobs:
           fi
 
       - name: Generate firebase_options.dart from dart_defines.json
-        if: '!contains(grep('"FIREBASE_PROJECT_ID"'', dart_defines.json), ''your-firebase-project-id'')'
+        if: always()
         env:
           DART_DEFINES_JSON: ${{ secrets.DART_DEFINES_JSON }}
         run: |
-          PROJECT_ID=$(grep -oP '"FIREBASE_PROJECT_ID":\s*"\K[^"]+' dart_defines.json)
+          if [ ! -f dart_defines.json ]; then
+            echo "No dart_defines.json — skipping firebase_options.dart generation."
+            exit 0
+          fi
+          PROJECT_ID=$(grep -oP '"FIREBASE_PROJECT_ID":\s*"\K[^"]+' dart_defines.json || true)
           if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "your-firebase-project-id" ]; then
             echo "No real Firebase project ID — skipping firebase_options.dart generation."
             exit 0
@@ -144,7 +148,7 @@ jobs:
         env:
           DART_DEFINES_JSON: ${{ secrets.DART_DEFINES_JSON }}
         run: |
-          PROJECT_ID=$(grep -oP '"FIREBASE_PROJECT_ID":\s*"\K[^"]+' dart_defines.json)
+          PROJECT_ID=$(grep -oP '"FIREBASE_PROJECT_ID":\s*"\K[^"]+' dart_defines.json || true)
           if [ -z "$PROJECT_ID" ] || [ "$PROJECT_ID" = "your-firebase-project-id" ]; then
             echo "No real Firebase project ID — skipping firebase_options.dart generation."
             exit 0
